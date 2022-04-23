@@ -24,8 +24,8 @@ var planeBuffers;
 var plane;
 
 var e = 0;
-var rad1 = 0.75;
-var rad2 = 0.25;
+var rad1 = 1;
+var rad2 = 0.5;
 var seg1 = 100;
 var seg2 = 200;
 var torusRotation = 0;
@@ -47,10 +47,14 @@ var key_down = false;
 
 var key_space = false;
 var testRotation = 0;
+var xxx = 0.0;
+var xxxx = 0.0;
 
 $(document).ready(function () {
     loadWebGL();
 });
+
+
 
 class WorldObject {
 
@@ -78,23 +82,18 @@ class WorldObject {
 
             mat4.rotate(modelViewMatrix,
                 modelViewMatrix,
-                this.parent.rotX,
-                [1, 0, 0]);
-
-            mat4.rotate(modelViewMatrix,
-                modelViewMatrix,
                 this.parent.rotY,
                 [0, 1, 0]);
 
-            mat4.rotate(modelViewMatrix,
-                modelViewMatrix,
-                this.parent.rotZ,
-                [0, 0, 1]);
 
 
             mat4.translate(modelViewMatrix,
                 modelViewMatrix,
                 [this.offset[0], this.offset[1], this.offset[2]]);
+
+
+
+
         } else {
             mat4.translate(modelViewMatrix,
                 modelViewMatrix,
@@ -113,6 +112,18 @@ class WorldObject {
             modelViewMatrix,
             this.rotZ,
             [0, 0, 1]);
+
+        if (this.parent != null) {
+
+
+            var tr = xxx;
+
+            if (car.td <= 0 && this.offset[0] > 0) tr = -tr;
+            mat4.rotate(modelViewMatrix,
+                modelViewMatrix,
+                tr,
+                [0, 1, 0]);
+        }
 
 
         const normalMatrix = mat4.create();
@@ -242,7 +253,7 @@ class Car {
         this.tdt = 2; // turning threshold
         this.tdv = 1;
         this.width = 2;
-        this.length = 3;
+        this.length = 5;
         this.rotX = 0;
         this.rotY = 0;
         this.rotZ = 0;
@@ -279,11 +290,11 @@ class Car {
             this.td -= 0.015;
         }
 
-        if (this.td > 1) {
-            this.td = 1;
-        } else if (this.td < -1) {
+        if (this.td > 0.75) {
+            this.td = 0.75;
+        } else if (this.td < -0.75) {
 
-            this.td = -1;
+            this.td = -0.75;
         }
 
         if (this.td > 0) {
@@ -298,17 +309,43 @@ class Car {
         if (key_space) {
 
 
+            //car.rotY = Math.PI / 2;
+            //car.vx += 0.001; //0.001 * (Math.sin(Math.PI - car.rotY));
+            car.vz -= 0.008 * Math.sin(car.rotY) * (2 - Math.abs(car.td * 2));//* (Math.cos(Math.PI - car.rotY));
+            car.vx += 0.008 * Math.cos(car.rotY) * (2 - Math.abs(car.td * 2));
+
+            //car.rotY += 0.009 * this.td;
+            // PI / 2 SHOULD YIELD NEGATIVE ON THE Z
+            // 0 SHOULD YIELD POSITIVE ON THE X
+            // PI SHOULD BE NEGATIVE ON THE X
+            // PI * 3/4 SHOULD YIELD POSITIVE ON THE Z
+
+            //alert(car.rotY + ", ");
 
 
-            //car.rotY = Math.cos(car.wheels[0].rotY);
-            if (car.td > 0)
-                car.rotY += 0.02 * (car.wheels[0].rotY);
-            else
-                car.rotY -= 0.02 * (car.wheels[1].rotY);
 
-            car.vx += 0.005 * Math.cos(car.rotY);
-            car.vz += 0.005 * -Math.sin(car.rotY);
+        }
 
+
+        car.rotY += 0.009 * this.td;
+        //console.log(car.vx + "," + car.vz);
+
+        xxx -= Math.abs(car.vz) + Math.abs(car.vx);
+
+        if ((Math.abs(car.vx) > 0 || Math.abs(car.vy) > 0) && !key_left && !key_right) {
+
+            if (car.td > 0) {
+                //car.rotY += 0.02 * (car.wheels[0].rotY);
+
+                car.td -= Math.abs(car.vx * car.vz * 0.5);
+
+                if (car.td < 0) car.td = 0;
+                //car.rotY +=0.001 * (car.wheels[0].rotY);
+            } else {
+                //car.rotY -= 0.001 * (car.wheels[1].rotY);
+                car.td += Math.abs(car.vx * car.vz * 0.5);
+                if (car.td > 0) car.td = 0;
+            }
         }
 
 
@@ -316,9 +353,9 @@ class Car {
         this.y += this.vy;
         this.z += this.vz;
 
-        this.vx *= 0.98;
-        this.vy *= 0.98;
-        this.vz *= 0.98;
+        this.vx *= 0.99;
+        this.vy *= 0.99;
+        this.vz *= 0.99;
 
         //center
     }
@@ -349,7 +386,21 @@ class Plane extends WorldObject {
     constructor(x, y, z) {
         super(x, y, z);
         this.buffers = planeBuffers;
-        this.scale = [7.5, 7.5, 7.5];
+        this.scale = [1000, 10, 1000];
+        this.reflectiveness = 1;
+    }
+
+    draw(gl, projectionMatrix, viewMatrix) {
+        super.draw(gl, projectionMatrix, viewMatrix);
+    }
+}
+
+class Model extends WorldObject {
+
+    constructor(x, y, z) {
+        super(x, y, z);
+        this.buffers = modelBuffers;
+        this.scale = [1, 1, 1];
         this.reflectiveness = 1;
     }
 
@@ -359,7 +410,7 @@ class Plane extends WorldObject {
 }
 
 
-function loadWebGL() {
+async function loadWebGL() {
     if (!loaded) loaded = true; else return;
 
     document.addEventListener('keydown', function (event) {
@@ -443,7 +494,7 @@ function loadWebGL() {
       void main() {
         gl_Position = uProjectionMatrix * uViewMatrix * uModelViewMatrix * aVertexPosition;
 
-        highp vec3 ambientLight = vec3(0.7, 0.7, 0.7);
+        highp vec3 ambientLight = vec3(0.9, 0.9, 0.9);
         highp vec3 directionalLightColor = vec3(abs(aVertexPosition[1] * 4.0), abs(aVertexPosition[1] * 4.0), abs(aVertexPosition[1] * 4.0));
         highp vec3 directionalVector = normalize(vec3(-aVertexPosition[0], -aVertexPosition[1], -aVertexPosition[2]));
   
@@ -454,6 +505,7 @@ function loadWebGL() {
 
         vVertexNormal = aVertexNormal;
         vVertexColor = aVertexColor;
+        
       }
     `;
 
@@ -488,8 +540,14 @@ function loadWebGL() {
 
     torusBuffers = initTorusBuffers(gl);
     planeBuffers = initPlaneBuffers(gl);
+    modelBuffers = await loadFileBuffers("monkey.obj", gl);
+
     torus = new Torus(0, 0, 0);
     plane = new Plane(0, -1, 0);
+    model = new Model(0, 3, 0);
+
+
+
 
     car = new Car(0, 0, 0);
 
@@ -582,9 +640,9 @@ function update() {
     var y = Math.sin(pitch)
     var z = xzLen * Math.sin(-yaw)
 
-    direction = vec3.fromValues(x, y, z);
-    var copy = direction;
-    vec3.normalize(direction, copy);
+    //direction = vec3.fromValues(x, y, z);
+    //var copy = direction;
+    //vec3.normalize(direction, copy);
     //up = vec3.fromValues(0.0, Math.sin(e), Math.cos(e));
 
 }
@@ -604,6 +662,9 @@ function drawScene() {
     const projectionMatrix = mat4.create();
     const viewMatrix = mat4.create();
     var center = vec3.create();
+    eye = vec3.fromValues(car.x - Math.cos(car.rotY) * 9, car.y + 3, car.z + Math.sin(car.rotY) * 9);
+    //direction = car.rotY;
+    direction = vec3.fromValues(Math.cos(car.rotY), 0, -Math.sin(car.rotY));
     vec3.add(center, eye, direction);
     mat4.lookAt(viewMatrix, eye, center, up);
     mat4.perspective(projectionMatrix,
@@ -612,11 +673,16 @@ function drawScene() {
         zNear,
         zFar);
 
+    // car.vz -= 0.004 * Math.sin(car.rotY);//* (Math.cos(Math.PI - car.rotY));
+    //   car.vx += 0.004 * Math.cos(car.rotY);
 
     //testRotation += 0.01;
     plane.draw(gl, projectionMatrix, viewMatrix);
     // torus.draw(gl, projectionMatrix, viewMatrix);
     car.draw(gl, projectionMatrix, viewMatrix);
+
+    model.draw(gl, projectionMatrix, viewMatrix);
+
 }
 
 function resizeCanvas() {
@@ -675,10 +741,94 @@ function initPlaneBuffers(gl) {
         0.0, 1.0, 0.0,
         0.0, 1.0, 0.0,
         0.0, 1.0, 0.0];
-    const vertexColors = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    const vertexColors = [1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 0.0, 1.0];
 
     return initBuffers(gl, positions, indices, vertexNormals, vertexColors, indices.length);
 }
+
+async function loadFileBuffers(filepath, gl) {
+
+    const response = await fetch(filepath);
+    const text = await response.text();
+
+
+    const positions = [0, 0, 0];
+    const indices = [];
+    const vertexNormals = [0, 0];
+    const vertexColors = [];
+
+    const vPositions = [0, 0, 0];
+    const vNormals = [0, 0];
+
+    var numIndices = 0;
+
+    var array = text.split("\n");
+    for (var i = 0; i < array.length; i++) {
+        var line = array[i].split(/(\s+)/).filter(e => e.trim().length > 0)
+
+        if (line[0] === "v") {
+            vPositions.push(parseFloat(line[1]), parseFloat(line[2]), parseFloat(line[3]));
+        } else if (line[0] === "vn") {
+            vNormals.push(parseInt(line[1]));
+            vNormals.push(parseInt(line[2]));
+            vNormals.push(parseInt(line[3]));
+
+            
+            //alert('a')
+        } else if (line[0] === "f") {
+
+            let verts = array[i].split(' ').slice(1);
+            const numTriangles = (verts.length) - 2;
+            for (let tri = 0; tri < numTriangles; ++tri) {
+                indices.push(++numIndices);
+                indices.push(++numIndices);
+                indices.push(++numIndices);
+
+                vertexColors.push(Math.random(), Math.random(), Math.random());
+                vertexColors.push(Math.random(), Math.random(), Math.random());
+                vertexColors.push(Math.random(), Math.random(), Math.random());
+
+                //alert(verts[0]);
+                addVertex(verts[0]);
+                addVertex(verts[tri + 1]);
+                addVertex(verts[tri + 2]);
+            }
+
+            //alert(numIndices);
+        }
+    }
+
+    function addVertex(vert) {
+
+        let vertexIndex = 3 * parseInt(vert.split('/')[0]);
+        let normalIndex = 3 * parseInt(vert.split('/')[2]);
+
+
+       // alert(vertexIndex);
+        positions.push(vPositions[vertexIndex]);
+        positions.push(vPositions[vertexIndex + 1]);
+        positions.push(vPositions[vertexIndex + 2]);
+
+        vertexNormals.push(vNormals[normalIndex]);
+        vertexNormals.push(vNormals[normalIndex + 1]);
+        vertexNormals.push(vNormals[normalIndex + 2]);
+
+
+        // alert("how work")
+    }
+
+
+    //alert(positions.length);
+    //alert(indices.length);
+
+    //alert(indices.length);
+
+
+    return initBuffers(gl, positions, indices, vertexNormals, vertexColors, indices.length);
+}
+
+
+
 
 function initTorusBuffers(gl) {
     const positions = [];
@@ -712,15 +862,11 @@ function initTorusBuffers(gl) {
             vertexNormals.push(dyy);
             vertexNormals.push(dzz);
 
-            if (Math.random() > 0.04) {
-                vertexColors.push(0.1 + Math.random());
-                vertexColors.push(Math.random() / 4);
-                vertexColors.push(Math.random());
-            } else {
-                vertexColors.push(1.0);
-                vertexColors.push(1.0);
-                vertexColors.push(0.7);
-            }
+
+            var color = Math.random() / 4;
+            vertexColors.push(color);
+            vertexColors.push(color);
+            vertexColors.push(color);
         }
 
     }
