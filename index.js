@@ -16,15 +16,16 @@ var direction;
 var torusBuffers;
 var torus;
 var size = 256; // no more than 63
+var chunkLength = 30;
 
 var startingPos;
 
 
-var planePositions;
+var planePositions = [];
 var car;
 
-var planeBuffers;
-var plane;
+var planeBuffers = [];
+var planes = [];
 var terrainBuffers;
 
 var e = 0;
@@ -54,6 +55,8 @@ var key_space = false;
 var testRotation = 0;
 var xxx = 0.0;
 var xxxx = 0.0;
+
+var highest = 0;
 
 $(document).ready(function () {
     var x = document.getElementById("glcanvas");
@@ -262,6 +265,8 @@ class Torus extends WorldObject {
         this.speed = 0.0;
 
         this.y = calcY(this.x, this.z) + this.scale[1] / 2;
+
+        console.log(calcY(254.9, 20), calcY(255, 20), calcY(255.8, 20), calcY(256.2, 20));
     }
 
     draw(gl, projectionMatrix, viewMatrix) {
@@ -277,19 +282,19 @@ class Torus extends WorldObject {
         if (key_w) {
             this.speed += 0.0005;
 
-            if (this.speed > 1.25) {
-                this.speed = 1.25;
-            }
+           
+        }
+
+        if (this.speed > 1.25) {
+            this.speed = 1.25;
         }
 
 
-
-
-        var nx = this.x + normalDirection[0] * this.speed;
-        var nz = this.z + normalDirection[2] * this.speed;
+        var nx = this.x + normalDirection[0] * this.speed ; //* (dt / (1000 / 144));
+        var nz = this.z + normalDirection[2] * this.speed; //* (dt / (1000 / 144));
 
         if (this.onGround) {
-            this.speed += (this.y - (calcY(nx, nz) + this.scale[1] / 2)) / 100.0;
+            this.speed += ((this.y - (calcY(nx, nz) + this.scale[1] / 2)) / 100.0) * (dt / (1000 / 144));;
             //var longY = (calcY(shortX, shortZ) - this.y) * 10 * this.speed;
         }
         // var shortX = this.x + normalDirection[0] * (this.speed / 10);
@@ -299,12 +304,12 @@ class Torus extends WorldObject {
 
 
 
-     
+
 
         if (key_space && this.onGround) {
             this.vy += 0.1;
             this.onGround = false;
-            console.log("jump!");
+            // console.log("jump!");
         }
 
         this.x = nx;
@@ -314,11 +319,11 @@ class Torus extends WorldObject {
             this.y = calcY(nx, nz) + this.scale[1] / 2;
             this.vy = 0;
         } else {
-            this.vy += this.g * dt;
-            this.y += this.vy;
+            this.vy += this.g * (dt / (1000 / 144)) * (dt / (1000 / 144));
+            this.y += this.vy;// * (dt / (1000 / 144));
         }
 
-        console.log(this.onGround, this.y);
+        //console.log(this.onGround, this.y);
 
         if (this.y < calcY(nx, nz) + this.scale[1] / 2 && !this.onGround) {
             this.y = calcY(nx, nz) + this.scale[1] / 2;
@@ -334,6 +339,7 @@ class Torus extends WorldObject {
         this.speed *= 0.998;
 
 
+        //console.log(this.x);
 
 
         /*
@@ -549,15 +555,27 @@ class Torus extends WorldObject {
 }
 
 function calcY(x, z) {
+    var index = Math.floor((x) / (size - 1));
 
     var posx = Math.floor(x);// + size / 2;
     var posz = Math.floor(z);// + size / 2;
+  
+
+    //var q = Math.floor(x / (size - 1));
+    //console.log(q);
+
+    posx = posx - (index * (size - 1));
+
+    
     var os = ((posx * size + posz) * 3);
 
-    var A = vec3.fromValues(planePositions[os], planePositions[os + 1], planePositions[os + 2]);
-    var D = vec3.fromValues(planePositions[os + 3], planePositions[os + 4], planePositions[os + 5]);
-    var B = vec3.fromValues(planePositions[os + size * 3], planePositions[os + 1 + size * 3], planePositions[os + 2 + size * 3]);
-    var C = vec3.fromValues(planePositions[os + 3 + size * 3], planePositions[os + 4 + size * 3], planePositions[os + 5 + size * 3]);
+    // alert(index);
+    //var j = 
+
+    var A = vec3.fromValues(planePositions[index][os], planePositions[index][os + 1], planePositions[index][os + 2]);
+    var D = vec3.fromValues(planePositions[index][os + 3], planePositions[index][os + 4], planePositions[index][os + 5]);
+    var B = vec3.fromValues(planePositions[index][os + size * 3], planePositions[index][os + 1 + size * 3], planePositions[index][os + 2 + size * 3]);
+    var C = vec3.fromValues(planePositions[index][os + 3 + size * 3], planePositions[index][os + 4 + size * 3], planePositions[index][os + 5 + size * 3]);
 
     // var su = vec3.fromValues(1.0, 1.0, 1.0); 
     ///alert("VECTOR TEST: " + su[1]);
@@ -568,18 +586,18 @@ function calcY(x, z) {
     var result = ((B[0] - x) / (B[0] - A[0]) * qa) + ((x - A[0]) / (B[0] - A[0]) * qb);
 
     if (isNaN(result) || !isFinite(result)) {
-        result = planePositions[((posx * size + posz) * 3) + 1];
+        result = planePositions[index][((posx * size + posz) * 3) + 1];
     }
-
+    //console.log("y:" + result);
     return result;
     // return -(a * x + c * z + d) / b;
 }
 
 class Plane extends WorldObject {
 
-    constructor(x, y, z) {
+    constructor(index, x, y, z) {
         super(x, y, z);
-        this.buffers = planeBuffers;
+        this.buffers = planeBuffers[index];
         this.scale = [1.0, 1.0, 1.0];
         this.x = 0;
         this.reflectiveness = 1;
@@ -733,12 +751,19 @@ async function loadWebGL() {
         },
     };
 
+    noise.seed(Math.random());
     torusBuffers = initTorusBuffers(gl);
-    planeBuffers = initPlaneBuffers(gl);
+    for (var i = 0; i < chunkLength; i++) {
+        planeBuffers[i] = initPlaneBuffers(gl, i);
+    }
+
     modelBuffers = await loadFileBuffers("cat.obj", gl);
 
     // torus = new Torus(0, 0, 0);
-    plane = new Plane(0, -1, 0);
+    for (var i = 0; i < chunkLength; i++) {
+        planes.push(new Plane(i, 0, -1, 0));
+    }
+
     model = new Model(-30, -1, 0);
 
 
@@ -763,7 +788,7 @@ function loop(now) {
     var dt = (now - lastTime);
     lastTime = now;
 
-    update(dt / 6.0);
+    update(dt);
 }
 
 function update(dt) {
@@ -868,6 +893,11 @@ function drawScene() {
     var tz = car.z + Math.sin(car.rotY) * camDist;
     camY = 20;
 
+    //calcY(tx, tz) CANT CALL CALCY BC IT THROWS THIS ERRO bruh
+   // if(car.y - car.scale[1]/2 + camY < calcY(tx, tz)) {
+       // camY = calcY(tx, tz) + car.scale[1]/2 - car.y;
+  //  }
+
     eye = vec3.fromValues(tx, car.y + camY, tz);
 
     direction = vec3.fromValues(Math.cos(car.rotY), -camY / camDist, -Math.sin(car.rotY));
@@ -883,7 +913,9 @@ function drawScene() {
     //   car.vx += 0.004 * Math.cos(car.rotY);
 
     //testRotation += 0.01;
-    plane.draw(gl, projectionMatrix, viewMatrix);
+    for (var i = 0; i < chunkLength; i++) {
+        planes[i].draw(gl, projectionMatrix, viewMatrix);
+    }
     // torus.draw(gl, projectionMatrix, viewMatrix);
     car.draw(gl, projectionMatrix, viewMatrix);
 
@@ -941,31 +973,34 @@ function initShaderProgram(gl, vsSource, fsSource) {
     return shaderProgram;
 }
 
-function initPlaneBuffers(gl) {
+function initPlaneBuffers(gl, index) {
 
-    noise.seed(Math.random());
+   
 
     const positions = [];
 
     const vertexNormals = [];
     const vertexColors = [];
 
-    var hs = 15;
-    var d = 200;
+    var hs = 36; // height scaling
+    var d = 400; // density
     var scale = 2.0; // noise scale
 
-    var addSlope = 130;
+    var addSlope = 160 * chunkLength; // added scale
 
-    var highest = 0;
+
 
     for (var i = 0; i < size; i++) {
         for (var j = 0; j < size; j++) {
 
 
-            var val = noise.simplex2(((i) * scale) / d, ((j) * scale) / d);
+            var xx = index * (size - 1) + i;// - size / 2; 
+
+            var val = noise.simplex2(((xx) * scale) / d, ((j) * scale) / d);
             var height = (val * (hs)) - (hs / 2);
-            var xx = i;// - size / 2;
-            var yy = height + (i / size) * addSlope;
+
+                  
+            var yy = height + (1 - ((xx) / (size * (chunkLength)))) * addSlope;
             var zz = j;// - size / 2;
             positions.push(xx, yy, zz);
 
@@ -995,18 +1030,13 @@ function initPlaneBuffers(gl) {
             indices.push(start);
             indices.push(start + size);
             indices.push(start + size + 1);
-
-
-
-
-
         }
     }
 
 
 
 
-    planePositions = positions.map((x) => x); // some dumb shallow copy stuff
+    planePositions[index] = positions.map((x) => x); // some dumb shallow copy stuff
 
     return initBuffers(gl, positions, indices, vertexNormals, vertexColors, indices.length);
 }
