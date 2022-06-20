@@ -15,7 +15,9 @@ var up;
 var direction;
 var torusBuffers;
 var torus;
-var size = 200;
+var size = 256; // no more than 63
+
+var startingPos;
 
 
 var planePositions;
@@ -56,7 +58,7 @@ var xxxx = 0.0;
 $(document).ready(function () {
     var x = document.getElementById("glcanvas");
 
-   
+
 
     loadWebGL();
 
@@ -70,9 +72,9 @@ function mouseClick(e) {
 
 
 function mouseMove(e) {
-        //var difX = 
-        car.rotY -= ((e.movementX) / 1000);
-        //camY += e.movementY / 100;
+    //var difX = 
+    car.rotY -= ((e.movementX) / 1000);
+    //camY += e.movementY / 100;
 
 }
 
@@ -248,141 +250,254 @@ class Torus extends WorldObject {
         this.buffers = torusBuffers;
         this.scale = [1.0, 1.0, 1.0];
         this.rotX = Math.PI / 2;
-        this.onGround = false;
+        this.onGround = true;
         this.reflectiveness = 1;
         //this.rotY = 2;
         this.offset = offset;
+        this.velocity = vec3.fromValues(0.0, 0.0, 0.0);
+        this.g = -0.002;
+        this.mass = 50;
         this.vy = 0;
-        this.vx = 0;
-        this.vz = 0;
-        this.a = -0.02;
-        this.speed = 0;
 
-        this.y = calcY(this.x, this.z);
+        this.speed = 0.0;
+
+        this.y = calcY(this.x, this.z) + this.scale[1] / 2;
     }
 
     draw(gl, projectionMatrix, viewMatrix) {
         super.draw(gl, projectionMatrix, viewMatrix);
     }
 
-
-   
-
-    update() {
-
+    update(dt) {
+        //alert(dt);
 
         var normalDirection = vec3.create();
         vec3.normalize(normalDirection, vec3.fromValues(direction[0], 0.0, direction[2]));
-        var speed = 0.1;
-        vec3.multiply(normalDirection, normalDirection, vec3.fromValues(speed, 0, speed));
+
+        if (key_w) {
+            this.speed += 0.0005;
+
+            if (this.speed > 1.25) {
+                this.speed = 1.25;
+            }
+        }
 
 
+
+
+        var nx = this.x + normalDirection[0] * this.speed;
+        var nz = this.z + normalDirection[2] * this.speed;
+
+        if (this.onGround) {
+            this.speed += (this.y - (calcY(nx, nz) + this.scale[1] / 2)) / 100.0;
+            //var longY = (calcY(shortX, shortZ) - this.y) * 10 * this.speed;
+        }
+        // var shortX = this.x + normalDirection[0] * (this.speed / 10);
+        //var shortZ = this.z + normalDirection[2] * (this.speed / 10);
+
+        //var longY = (calcY(shortX, shortZ) - this.y) * 10;
+
+
+
+     
+
+        if (key_space && this.onGround) {
+            this.vy += 0.1;
+            this.onGround = false;
+            console.log("jump!");
+        }
+
+        this.x = nx;
+        this.z = nz;
+
+        if (this.onGround) {
+            this.y = calcY(nx, nz) + this.scale[1] / 2;
+            this.vy = 0;
+        } else {
+            this.vy += this.g * dt;
+            this.y += this.vy;
+        }
+
+        console.log(this.onGround, this.y);
+
+        if (this.y < calcY(nx, nz) + this.scale[1] / 2 && !this.onGround) {
+            this.y = calcY(nx, nz) + this.scale[1] / 2;
+            this.vy = 0;
+            this.onGround = true;
+        }
+        // speed += 
+
+        if (this.speed < 0) {
+            this.speed = 0;
+        }
+
+        this.speed *= 0.998;
+
+
+
+
+        /*
+        var normalDirection = vec3.create();
+        vec3.normalize(normalDirection, vec3.fromValues(direction[0], 0.0, direction[2]));
+        vec3.multiply(normalDirection, normalDirection, vec3.fromValues(0.1, 0, 0.1));
         var reverse = vec3.create();
         vec3.multiply(reverse, normalDirection, vec3.fromValues(-1, -1, -1));
-
-
         var left_ = vec3.create();
         vec3.rotateY(left_, normalDirection, vec3.fromValues(0.0, 0.0, 0.0), Math.PI / 2);
-
-
         var right_ = vec3.create();
         vec3.rotateY(right_, normalDirection, vec3.fromValues(0.0, 0.0, 0.0), -Math.PI / 2);
 
-        var left = vec3.fromValues(left_[0], 0.0, left_[2]);
-        var right = vec3.fromValues(right_[0], 0.0, right_[2]); // tghis is a hack but i really don't want to fuckin code a rotation around axis function for vectors in javascript
-   
+        */
 
-        if (key_s) {
-
+        /*
+        if(key_w) {
+          //  this.velocity[0] += direction[0] * 0.005;
+           // this.velocity[2] += direction[2] * 0.005;
+           // alert("velocity od osm");
         }
 
-        if (key_a) {
+        var thetaX = 0.0;
+        var thetaZ = 0.0;
+        var thetaY = 0.0;
 
-            //  alert(pitch);
-          //  car.rotY += 0.03;
+        var frictionX = 0.0;
+        var frictionZ = 0.0;
+        var friction = 0.95;
+        var xDir = vec3.create();
+        var zDir = vec3.create();
+        var yDir = vec3.create();
+        var slope = vec3.create();
+
+        var nx = this.x + direction[0];
+       // var ny = this.y + this.velocity[1];
+        var nz = this.z + direction[2];
+
+        if(this.y + (this.velocity[1]) > calcY(nx, nz)) {
+        //    nextY = this.y + (this.velocity[1] * dt);
+        } else {
+            this.velocity[1] = 0.0;
+        }
+ 
+        this.y = calcY(nx, nz) + this.scale[1] / 2;
+
+        var nextPos = vec3.fromValues(nx, calcY(nx, nz), nz);
+        var curPos = vec3.fromValues(this.x, this.y, this.z);
+
+        vec3.sub(slope, nextPos, curPos);
+
+        this.x += this.direction[0];
+       // this.y += this.velocity[1];
+        this.z += this.direction[2];
+
+        var gravity = this.mass * this.g;
+
+        xDir[0] = 1.0;
+        xDir[1] = 0.0;
+        xDir[2] = 0.0;
+
+        thetaX = Math.abs(vec3.dot(xDir, slope));
+
+        zDir[0] = 0.0;
+        zDir[1] = 0.0;
+        zDir[2] = 1.0;
+
+        thetaZ = Math.abs(vec3.dot(zDir, slope));
+
+        yDir[0] = 0.0;
+        yDir[1] = 1.0;
+        yDir[2] = 0.0;
+
+        thetaY = Math.abs(vec3.dot(yDir, slope));
+
+        */
+        // console.log(thetaY);
+
+        if (dt) {
+            // frictionX = (this.velocity[0] / (dt * 1.0)) * friction;
+            //  frictionZ = (this.velocity[2] / (dt * 1.0)) * friction;
+            // alert("HELLO");
+
+
+        } else {
+            // alert("what the fuck");
+            // frictionX = 0.0;
+            // frictionZ = 0.0;
         }
 
-        if (key_d) {
+        // var ax = ((gravity * thetaX) - frictionX) / this.mass;
+        // var az = ((gravity * thetaZ) - frictionZ) / this.mass;
 
-         //   car.rotY -= 0.03;
-        }
+        // this.velocity[0] = this.velocity[0] + ax * dt;
+        // this.velocity[1] = this.velocity[1] + this.g * dt;
+        //  this.velocity[2] = this.velocity[2] + az * dt;
 
-
-
-        var di = vec3.create();
-        if (key_a) {
-            // this.z -= 0.5;
-            // vec3.add(eye, eye, left);
-
-            //di = left;
-            vec3.add(di, di, left);
-
-        }
-
-        if (key_d) {
-            // this.z += 0.5;
-            // vec3.add(eye, eye, right);
-
-            vec3.add(di, di, right);
-        }
-
-        if (key_w) {
-            vec3.add(di, di, normalDirection);
-            // di = normalDirection;
-            // this.x += 0.5;
-            // vec3.add(eye, eye, normalDirection);
-
-        }
-
-        if (key_s) {
-
-            // di = reverse;
-            vec3.add(di, di, reverse);
-        }
+        //  console.log("COORD:", dt, this.x, this.y, this.z);
 
 
-        vec3.multiply(di, di, vec3.fromValues(3.0, 3.0, 3.0));
 
-        //var nextY = calcY(this.x + di[0], this.z + di[2]);
-        // var nextPoint = vec3.fromValues(x + di[0], nextY, z + di[2]);
+
+        /*
+       
+
+        var nx = this.x + direction[0] * 0.5;
+        var nz = this.z + direction[2] * 0.5;
+
+        var ch = calcY(this.x, this.z);
+        this.speed += (ch - calcY(nx, nz)) / 1000;
+
+
+        var nextX = this.x + direction[0] * this.speed;
+        var nextZ = this.z + direction[2] * this.speed;
+
+
+       // this.y += calcY(nextX, nextZ) < calcY(this.x, this.z);
+
+        if (calcY(nextX, nextZ) < calcY(this.x, this.z)) {
+            this.onGround = false;
+
+        } 
         
-        //this.vx += direction[0] * 0.1;
-        //this.vz += direction[2] * 0.1;
-
-        var newY = calcY(this.x + this.vx * speed, this.z + this.vz * speed) + this.scale[1]/2;
-
-        speed += (newY - this.y) * 0.000001;
-        //direction[0] * 0.1;
-        //direction[2] * 0.1;
-
-        console.log(this.y - newY);
-        console.log("SPEED: " + speed);
         
+        this.x += direction[0] * this.speed; //direction[0] * speed;
+        this.z += direction[2] * this.speed;
 
-        this.vx += direction[0] * speed;
-        this.vz += direction[2] * speed;
+        if(this.onGround == false) {
+            this.vy += this.a;
+            this.y += this.vy;
+        } else {
+            this.y = calcY(this.x, this.z);
+            this.vy = 0;
+        }
+
+        */
+
+
+        // * speed;
+
+
+
+        //this.speed *= 0.997;
+        //if(calcY(this.x))
+
+        //alert(acc);
 
         //this.vy += this.y - newY;
 
-       // this.vx *= (this.y - newY);
+        // this.vx *= (this.y - newY);
         //this.vz *= (this.y - newY);
-        
-        this.x += this.vx;
-        this.z += this.vz;
-       
-        this.y = calcY(this.x, this.z);
 
-        this.vx *= 0.4;
-        this.vz *= 0.4;
-        
+
+
+
+
 
         //if ((nextY - this.y) <= 0 && this.onGround) {
-            //this.vy = nextY - this.y;
-           // this.y += (nextY - this.y);
+        //this.vy = nextY - this.y;
+        // this.y += (nextY - this.y);
         //}
 
 
-      //  this.vy += this.a;
+        //  this.vy += this.a;
 
 
         //console.log();
@@ -435,8 +550,8 @@ class Torus extends WorldObject {
 
 function calcY(x, z) {
 
-    var posx = Math.floor(x) + size / 2;
-    var posz = Math.floor(z) + size / 2;
+    var posx = Math.floor(x);// + size / 2;
+    var posz = Math.floor(z);// + size / 2;
     var os = ((posx * size + posz) * 3);
 
     var A = vec3.fromValues(planePositions[os], planePositions[os + 1], planePositions[os + 2]);
@@ -628,8 +743,7 @@ async function loadWebGL() {
 
 
 
-
-    car = new Torus(0, 0, 0);
+    car = new Torus(startingPos[0], startingPos[1], startingPos[2]);
 
     direction = vec3.fromValues(1, 0, 0);
     eye = vec3.fromValues(0.0, 0, 0.0);
@@ -638,22 +752,31 @@ async function loadWebGL() {
     window.requestAnimationFrame(loop);
 }
 
-function loop(timestamp) {
+var lastTime;
+
+function loop(now) {
     window.requestAnimationFrame(loop);
     drawScene();
-    update();
+
+
+    // console.log(now - lastTime);
+    var dt = (now - lastTime);
+    lastTime = now;
+
+    update(dt / 6.0);
 }
 
-function update() {
+function update(dt) {
     e += 0.005;
     torusRotation += 1 / 100;
+    // alert(dt);
 
 
 
     var normalDirection = vec3.create();
     vec3.normalize(normalDirection, vec3.fromValues(direction[0], 0.0, direction[2]));
-    var speed = 0.1;
-    vec3.multiply(normalDirection, normalDirection, vec3.fromValues(speed, 0, speed));
+
+    vec3.multiply(normalDirection, normalDirection, vec3.fromValues(0.1, 0, 0.1));
 
 
     var reverse = vec3.create();
@@ -696,7 +819,9 @@ function update() {
     }
 
 
-    car.update();
+
+    if (!isNaN(dt))
+        car.update(dt);
 
 
     if (key_down) {
@@ -707,13 +832,7 @@ function update() {
         }
     }
 
-    if (key_left) {
-        //yaw += Math.PI / 200;
-    }
 
-    if (key_right) {
-        // yaw -= Math.PI / 200;
-    }
 
     var xzLen = Math.cos(pitch)
     var x = xzLen * Math.cos(yaw)
@@ -743,14 +862,15 @@ function drawScene() {
     const viewMatrix = mat4.create();
     var center = vec3.create();
 
-    var camDist = 5;
+    var camDist = 20;
 
     var tx = car.x - Math.cos(car.rotY) * camDist;
     var tz = car.z + Math.sin(car.rotY) * camDist;
-    camY = calcY(tx, tz) + 5 - car.y;
+    camY = 20;
+
     eye = vec3.fromValues(tx, car.y + camY, tz);
 
-    direction = vec3.fromValues(Math.cos(car.rotY), -camY/camDist, -Math.sin(car.rotY));
+    direction = vec3.fromValues(Math.cos(car.rotY), -camY / camDist, -Math.sin(car.rotY));
     vec3.add(center, eye, direction);
     mat4.lookAt(viewMatrix, eye, center, up);
     mat4.perspective(projectionMatrix,
@@ -822,29 +942,43 @@ function initShaderProgram(gl, vsSource, fsSource) {
 }
 
 function initPlaneBuffers(gl) {
-    
 
+    noise.seed(Math.random());
 
     const positions = [];
 
     const vertexNormals = [];
     const vertexColors = [];
 
-    var hs = 30;
-    var d = 90;
+    var hs = 15;
+    var d = 200;
+    var scale = 2.0; // noise scale
+
+    var addSlope = 130;
+
+    var highest = 0;
 
     for (var i = 0; i < size; i++) {
         for (var j = 0; j < size; j++) {
 
 
-            var val = noise.simplex2((i - size / 2) / d, (j - size / 2) / d);
+            var val = noise.simplex2(((i) * scale) / d, ((j) * scale) / d);
             var height = (val * (hs)) - (hs / 2);
-            positions.push(i - size / 2, height, j - size / 2);
+            var xx = i;// - size / 2;
+            var yy = height + (i / size) * addSlope;
+            var zz = j;// - size / 2;
+            positions.push(xx, yy, zz);
+
+            if (yy > highest) {
+                highest = yy;
+                startingPos = vec3.fromValues(xx, yy, zz);
+            }
+
             vertexNormals.push(0.0, 1.0, 0.0);
 
             //var c = noise.simplex2((i - size/2), (j - size / 2));
             var c = Math.random();
-            vertexColors.push(c,c,c);
+            vertexColors.push(c, c / 1.25, c);
             //vertexColors.push(Math.random(), Math.random(), Math.random());
         }
     }
